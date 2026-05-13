@@ -29,6 +29,145 @@ const express = require('express');
 const RateLimit = require('express-rate-limit');
 const http = require('http');
 
+const ROOM_SCOPES = new Set(['ip', 'subnet', 'wide']);
+const DEFAULT_ROOM = 'default';
+
+function normalizeIp(rawIp) {
+    let ip = String(rawIp || 'unknown').trim().toLowerCase();
+
+    if (ip.startsWith('[')) {
+        ip = ip.slice(1, ip.indexOf(']'));
+    } else if (/^\d{1,3}(\.\d{1,3}){3}:\d+$/.test(ip)) {
+        ip = ip.slice(0, ip.lastIndexOf(':'));
+    }
+
+    if (ip.startsWith('::ffff:')) {
+        ip = ip.slice(7);
+    }
+
+    if (ip === '::1') {
+        return '127.0.0.1';
+    }
+
+    return ip.split('%')[0];
+}
+
+function isIPv4(ip) {
+    const parts = ip.split('.');
+    return parts.length === 4 && parts.every(part => {
+        if (!/^\d+$/.test(part)) return false;
+        const value = Number(part);
+        return value >= 0 && value <= 255;
+    });
+}
+
+function expandIPv6(ip) {
+    if (!ip.includes(':')) return null;
+
+    const pieces = ip.split('::');
+    if (pieces.length > 2) return null;
+
+    const head = pieces[0] ? pieces[0].split(':') : [];
+    const tail = pieces[1] ? pieces[1].split(':') : [];
+    const missing = 8 - head.length - tail.length;
+    if (missing < 0) return null;
+
+    const parts = [
+        ...head,
+        ...Array(missing).fill('0'),
+        ...tail
+    ];
+
+    if (parts.length !== 8 || !parts.every(part => /^[0-9a-f]{1,4}$/.test(part))) {
+        return null;
+    }
+
+    return parts.map(part => part.padStart(4, '0'));
+}
+
+function scopedIp(ip, scope) {
+    if (isIPv4(ip)) {
+        const parts = ip.split('.');
+
+        if (scope === 'wide') {
+            return `ipv4:${parts[0]}.${parts[1]}.0.0/16`;
+        }
+
+        if (scope === 'subnet') {
+            return `ipv4:${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+        }
+
+        return `ipv4:${ip}`;
+    }
+
+    const ipv6 = expandIPv6(ip);
+    if (ipv6) {
+        if (scope === 'wide') {
+            return `ipv6:${ipv6.slice(0, 3).join(':')}::/48`;
+        }
+
+        if (scope === 'subnet') {
+            return `ipv6:${ipv6.slice(0, 4).join(':')}::/64`;
+        }
+
+        return `ipv6:${ipv6.join(':')}`;
+    }
+
+    return `unknown:${ip}`;
+}
+
+function sanitizeRoom(value) {
+    const room = String(value || DEFAULT_ROOM)
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 64);
+
+    return room || DEFAULT_ROOM;
+}
+
+function sanitizeRoomKey(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9:._-]+/g, '')
+        .slice(0, 96);
+}
+
+function getRequestParams(request) {
+    return new URL(request.url, 'http://snapdrop.local').searchParams;
+}
+
+function getClientIp(request) {
+    const forwardedFor = request.headers['x-forwarded-for'];
+    const ip = forwardedFor
+        ? forwardedFor.split(/\s*,\s*/)[0]
+        : request.connection.remoteAddress;
+
+    return normalizeIp(ip);
+}
+
+function getRoomInfo(request) {
+    const params = getRequestParams(request);
+    const requestedScope = params.get('scope');
+    const scope = ROOM_SCOPES.has(requestedScope) ? requestedScope : 'ip';
+    const ip = getClientIp(request);
+    const room = sanitizeRoom(params.get('room'));
+    const roomKey = sanitizeRoomKey(params.get('roomKey'));
+    const passwordPart = roomKey ? `password:${roomKey}` : 'password:open';
+    const visibility = scopedIp(ip, scope);
+
+    return {
+        ip,
+        room,
+        roomKey,
+        scope,
+        visibility,
+        id: `${visibility}|room:${room}|${passwordPart}`
+    };
+}
+
 const limiter = RateLimit({
 	windowMs: 5 * 60 * 1000, // 5 minutes
 	max: 100, // Limit each IP to 100 requests per `window` (here, per 5 minutes)
@@ -115,10 +254,10 @@ class SnapdropServer {
                 break;
         }
 
-        // relay message to recipient
-        if (message.to && this._rooms[sender.ip]) {
+        // Relay WebRTC signaling only. File and text payloads must stay peer-to-peer.
+        if (message.type === 'signal' && message.to && this._rooms[sender.room.id]) {
             const recipientId = message.to; // TODO: sanitize
-            const recipient = this._rooms[sender.ip][recipientId];
+            const recipient = this._rooms[sender.room.id][recipientId];
             delete message.to;
             // add sender id
             message.sender = sender.id;
@@ -129,13 +268,13 @@ class SnapdropServer {
 
     _joinRoom(peer) {
         // if room doesn't exist, create it
-        if (!this._rooms[peer.ip]) {
-            this._rooms[peer.ip] = {};
+        if (!this._rooms[peer.room.id]) {
+            this._rooms[peer.room.id] = {};
         }
 
         // notify all other peers
-        for (const otherPeerId in this._rooms[peer.ip]) {
-            const otherPeer = this._rooms[peer.ip][otherPeerId];
+        for (const otherPeerId in this._rooms[peer.room.id]) {
+            const otherPeer = this._rooms[peer.room.id][otherPeerId];
             this._send(otherPeer, {
                 type: 'peer-joined',
                 peer: peer.getInfo()
@@ -144,8 +283,8 @@ class SnapdropServer {
 
         // notify peer about the other peers
         const otherPeers = [];
-        for (const otherPeerId in this._rooms[peer.ip]) {
-            otherPeers.push(this._rooms[peer.ip][otherPeerId].getInfo());
+        for (const otherPeerId in this._rooms[peer.room.id]) {
+            otherPeers.push(this._rooms[peer.room.id][otherPeerId].getInfo());
         }
 
         this._send(peer, {
@@ -154,24 +293,24 @@ class SnapdropServer {
         });
 
         // add peer to room
-        this._rooms[peer.ip][peer.id] = peer;
+        this._rooms[peer.room.id][peer.id] = peer;
     }
 
     _leaveRoom(peer) {
-        if (!this._rooms[peer.ip] || !this._rooms[peer.ip][peer.id]) return;
-        this._cancelKeepAlive(this._rooms[peer.ip][peer.id]);
+        if (!this._rooms[peer.room.id] || !this._rooms[peer.room.id][peer.id]) return;
+        this._cancelKeepAlive(this._rooms[peer.room.id][peer.id]);
 
         // delete the peer
-        delete this._rooms[peer.ip][peer.id];
+        delete this._rooms[peer.room.id][peer.id];
 
         peer.socket.terminate();
         //if room is empty, delete the room
-        if (!Object.keys(this._rooms[peer.ip]).length) {
-            delete this._rooms[peer.ip];
+        if (!Object.keys(this._rooms[peer.room.id]).length) {
+            delete this._rooms[peer.room.id];
         } else {
             // notify all other peers
-            for (const otherPeerId in this._rooms[peer.ip]) {
-                const otherPeer = this._rooms[peer.ip][otherPeerId];
+            for (const otherPeerId in this._rooms[peer.room.id]) {
+                const otherPeer = this._rooms[peer.room.id][otherPeerId];
                 this._send(otherPeer, { type: 'peer-left', peerId: peer.id });
             }
         }
@@ -217,7 +356,8 @@ class Peer {
 
 
         // set remote ip
-        this._setIP(request);
+        this.room = getRoomInfo(request);
+        this.ip = this.room.ip;
 
         // set peer id
         this._setPeerId(request)
@@ -230,23 +370,13 @@ class Peer {
         this.lastBeat = Date.now();
     }
 
-    _setIP(request) {
-        if (request.headers['x-forwarded-for']) {
-            this.ip = request.headers['x-forwarded-for'].split(/\s*,\s*/)[0];
-        } else {
-            this.ip = request.connection.remoteAddress;
-        }
-        // IPv4 and IPv6 use different values to refer to localhost
-        if (this.ip == '::1' || this.ip == '::ffff:127.0.0.1') {
-            this.ip = '127.0.0.1';
-        }
-    }
-
     _setPeerId(request) {
         if (request.peerId) {
             this.id = request.peerId;
-        } else {
+        } else if (request.headers.cookie) {
             this.id = request.headers.cookie.replace('peerid=', '');
+        } else {
+            this.id = Peer.uuid();
         }
     }
 
