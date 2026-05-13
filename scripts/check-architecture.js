@@ -40,6 +40,7 @@ function getTrackedFiles() {
 
 [
   'README.md',
+  'AGENTS.md',
   'LICENSE',
   'package.json',
   'pnpm-lock.yaml',
@@ -49,6 +50,16 @@ function getTrackedFiles() {
   '.env.example',
   'Dockerfile',
   '.github/workflows/ci.yml',
+  'docs/engineering/ARCHITECTURE.md',
+  'docs/engineering/QUALITY_GATES.md',
+  'docs/engineering/CI_AND_HOOKS.md',
+  'docs/engineering/COMMIT_CONVENTION.md',
+  'docs/engineering/AI_CODE_REVIEW_CHECKLIST.md',
+  'docs/engineering/RUNBOOK.md',
+  'docs/engineering/SECURITY.md',
+  'docs/engineering/DECISIONS.md',
+  'docs/prompts/AGENT_TASK_TEMPLATE.md',
+  'docs/prompts/CODE_REVIEW_PROMPT.md',
 ].forEach(requireFile);
 
 if (existsSync(repoPath('package-lock.json'))) {

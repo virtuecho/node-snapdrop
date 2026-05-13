@@ -1,49 +1,123 @@
-# node-snapdrop [![CodeQL](https://github.com/Bellisario/node-snapdrop/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/Bellisario/node-snapdrop/actions/workflows/codeql-analysis.yml)
+# node-snapdrop [![CI](https://github.com/Bellisario/node-snapdrop/actions/workflows/ci.yml/badge.svg)](https://github.com/Bellisario/node-snapdrop/actions/workflows/ci.yml) [![CodeQL](https://github.com/Bellisario/node-snapdrop/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/Bellisario/node-snapdrop/actions/workflows/codeql-analysis.yml)
 
-Just the original Snapdrop, with complete Node.js server.
+Just the original Snapdrop, with a complete Node.js server.
 
 > [!NOTE]
-> We do not endorse any recent changes made to the original Snapdrop, sold to LimeWire & [considered badware](https://github.com/uBlockOrigin/uAssets/issues/27172) by uBlock Origin, so we removed all the links referring to it.\
-> \
-> This repository acts as a pre-LimeWire & Node.js version of the good old Snapdrop.
+> We do not endorse any recent changes made to the original Snapdrop, sold to LimeWire and [considered badware](https://github.com/uBlockOrigin/uAssets/issues/27172) by uBlock Origin, so we removed all links referring to it.
+>
+> This repository acts as a pre-LimeWire and Node.js version of the good old Snapdrop.
+
+## Requirements
+
+- Node.js `>= 18`
+- pnpm `10.33.2`
+
+If pnpm is not available, enable it through Corepack:
+
+```bash
+corepack enable
+```
 
 ## Getting started
 
-To get started, clone and cd the repo:
+Clone and enter the repository:
 
 ```bash
-git clone https://github.com/Bellisario/node-snapdrop.git && cd node-snapdrop
+git clone https://github.com/Bellisario/node-snapdrop.git
+cd node-snapdrop
 ```
 
-Install all dependencies with pnpm:
+Install dependencies:
 
 ```bash
 pnpm install
 ```
 
-Start the server with:
+Start the local server:
 
 ```bash
 pnpm run dev
 ```
 
-### Public Run
+Open:
 
-If you want to run in your public "sharable" IP instead of locally, you can use this command:
+```text
+http://127.0.0.1:3000
+```
+
+## Public run
+
+If you want to run on a public or shared interface, use:
 
 ```bash
 pnpm run dev:public
 ```
 
 > [!TIP]
-> Remember to check your IP Address using your OS command to see where you can access the server.
+> Check your machine's IP address before sharing the URL.
+
+## Commands
+
+| Command | Purpose |
+|---|---|
+| `pnpm install` | Install dependencies from `pnpm-lock.yaml`. |
+| `pnpm run dev` | Run the app locally. |
+| `pnpm run dev:public` | Run with the public listen mode. |
+| `pnpm run lint` | Check JavaScript syntax. |
+| `pnpm test` | Start the app and smoke test `GET /`. |
+| `pnpm run arch:check` | Verify repository hygiene conventions. |
+| `pnpm run build` | Run no-build project validation. |
+| `pnpm check` | Run all local quality gates. |
+
+## Configuration
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `3000` | HTTP and WebSocket port. |
+| `NODE_ENV` | `development` in `.env.example` | Conventional Node runtime environment value. |
+
+Copy `.env.example` for local notes if needed, but do not commit `.env`.
+
+## Project structure
+
+```text
+index.js                  Node.js HTTP and WebSocket server
+public/                   Static Snapdrop client assets
+scripts/                  Local validation scripts
+docs/engineering/         Architecture, quality, CI, security, and runbook docs
+docs/prompts/             Reusable AI collaboration prompts
+.github/workflows/        CI and CodeQL workflows
+```
+
+## Validation
+
+Run the full local check before handing off a non-trivial change:
+
+```bash
+pnpm check
+```
+
+The current check suite verifies JavaScript syntax, repository conventions, and a runtime smoke test.
+
+## Docker
+
+Build:
+
+```bash
+docker build -t node-snapdrop .
+```
+
+Run:
+
+```bash
+docker run --rm -p 3000:3000 node-snapdrop
+```
 
 ## Contributing
 
-We :heart: contributions!\
-Feel free to open an [issue](https://github.com/Bellisario/node-snapdrop/issues) or a [pull request](https://github.com/Bellisario/node-snapdrop/pulls) but follow [Contributing Guidelines](https://github.com/Bellisario/node-snapdrop/blob/main/CONTRIBUTING.md).
+We love contributions. Feel free to open an [issue](https://github.com/Bellisario/node-snapdrop/issues) or a [pull request](https://github.com/Bellisario/node-snapdrop/pulls), and follow the [Contributing Guidelines](https://github.com/Bellisario/node-snapdrop/blob/main/CONTRIBUTING.md).
 
-> If you don't know where to start, check out the [help wanted issues](https://github.com/Bellisario/node-snapdrop/labels/help%20wanted)!
+For AI-assisted work, read [AGENTS.md](AGENTS.md) first.
 
 ## License
 
