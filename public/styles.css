@@ -365,6 +365,48 @@ x-dialog a {
     color: var(--primary-color);
 }
 
+x-dialog .field {
+    display: block;
+    margin: 12px 0;
+}
+
+x-dialog .field span {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    line-height: 18px;
+    color: var(--primary-color);
+}
+
+x-dialog input[type="text"],
+x-dialog input[type="password"],
+x-dialog select {
+    width: 100%;
+    min-height: 40px;
+    box-sizing: border-box;
+    border: none;
+    border-radius: 8px;
+    outline: none;
+    padding: 8px 12px;
+    font: inherit;
+    color: var(--text-color);
+    background: var(--bg-color-secondary);
+}
+
+x-dialog select {
+    appearance: auto;
+}
+
+#roomSummary {
+    min-height: 18px;
+    color: var(--primary-color);
+}
+
+.room-password-clear {
+    align-items: center;
+    margin: 8px 0;
+}
+
 /* Receive Dialog */
 #receiveDialog .row {
     margin-top: 24px;

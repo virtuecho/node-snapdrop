@@ -225,6 +225,74 @@ class Dialog {
     }
 }
 
+class RoomSettingsDialog extends Dialog {
+    constructor() {
+        super('roomDialog');
+        this.$button = $('roomSettings');
+        this.$form = $('roomForm');
+        this.$room = $('roomInput');
+        this.$password = $('roomPassword');
+        this.$scope = $('roomScope');
+        this.$clearPassword = $('clearRoomPassword');
+        this.$clearPasswordRow = $$('.room-password-clear');
+        this.$summary = $('roomSummary');
+        this.$discoveryStatus = $('discoveryStatus');
+
+        this.$button.addEventListener('click', e => this._onOpen(e));
+        this.$form.addEventListener('submit', e => this._onSubmit(e));
+        Events.on('room-settings-updated', e => this._updateStatus(e.detail));
+        this._updateStatus(RoomSettings.get());
+    }
+
+    show() {
+        this._syncForm();
+        super.show();
+    }
+
+    _onOpen(e) {
+        e.preventDefault();
+        this.show();
+    }
+
+    _onSubmit(e) {
+        e.preventDefault();
+        RoomSettings.save({
+            room: this.$room.value,
+            password: this.$password.value,
+            scope: this.$scope.value,
+            clearPassword: this.$clearPassword.checked
+        });
+        this.$password.value = '';
+        this.$clearPassword.checked = false;
+        this.hide();
+        Events.fire('notify-user', 'Room settings saved.');
+    }
+
+    _syncForm() {
+        const settings = RoomSettings.get();
+        this.$room.value = settings.room === 'default' ? '' : settings.room;
+        this.$scope.value = settings.scope;
+        this.$password.value = '';
+        this.$password.placeholder = settings.roomKey ? 'Saved password unchanged' : 'Optional';
+        this.$clearPassword.checked = false;
+        this.$clearPasswordRow.hidden = !settings.roomKey;
+        this._updateSummary(settings);
+    }
+
+    _updateStatus(settings) {
+        const isDefault = settings.room === 'default' && settings.scope === 'ip' && !settings.roomKey;
+        this.$discoveryStatus.textContent = isDefault
+            ? 'You can be discovered by everyone on this network'
+            : RoomSettings.label(settings);
+        this._updateSummary(settings);
+    }
+
+    _updateSummary(settings) {
+        if (!this.$summary) return;
+        this.$summary.textContent = RoomSettings.label(settings);
+    }
+}
+
 class ReceiveDialog extends Dialog {
 
     constructor() {
@@ -524,6 +592,7 @@ class Snapdrop {
         const peers = new PeersManager(server);
         const peersUI = new PeersUI();
         Events.on('load', e => {
+            const roomSettingsDialog = new RoomSettingsDialog();
             const receiveDialog = new ReceiveDialog();
             const sendTextDialog = new SendTextDialog();
             const receiveTextDialog = new ReceiveTextDialog();

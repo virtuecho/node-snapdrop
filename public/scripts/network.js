@@ -1,12 +1,171 @@
 window.URL = window.URL || window.webkitURL;
 window.isRtcSupported = !!(window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection);
 
+class RoomSettings {
+
+    static get() {
+        if (!this._settings) {
+            this._settings = this._load();
+        }
+
+        return { ...this._settings };
+    }
+
+    static save(settings) {
+        const current = this.get();
+        const next = {
+            room: this._normalizeRoom(settings.room),
+            scope: this._normalizeScope(settings.scope),
+            roomKey: settings.clearPassword ? '' : current.roomKey
+        };
+
+        if (settings.password) {
+            next.roomKey = this._hashPassword(settings.password);
+        }
+
+        this._settings = next;
+        this._store(next);
+        this._syncUrl(next);
+        Events.fire('room-settings-updated', next);
+        Events.fire('room-settings-changed', next);
+    }
+
+    static label(settings = this.get()) {
+        const room = settings.room || 'default';
+        const range = this.scopeLabel(settings.scope);
+        const lock = settings.roomKey ? 'locked' : 'open';
+        return `Room ${room} - ${range} - ${lock}`;
+    }
+
+    static scopeLabel(scope) {
+        switch (scope) {
+            case 'subnet':
+                return 'subnet';
+            case 'wide':
+                return 'wide subnet';
+            default:
+                return 'same IP';
+        }
+    }
+
+    static queryString() {
+        const settings = this.get();
+        const params = new URLSearchParams();
+        params.set('scope', settings.scope);
+        params.set('room', settings.room || 'default');
+
+        if (settings.roomKey) {
+            params.set('roomKey', settings.roomKey);
+        }
+
+        return `?${params}`;
+    }
+
+    static _load() {
+        let settings = {
+            room: 'default',
+            scope: 'ip',
+            roomKey: ''
+        };
+
+        try {
+            const stored = JSON.parse(localStorage.getItem('snapdrop-room-settings'));
+            settings = { ...settings, ...stored };
+        } catch (e) {
+            // Ignore malformed local settings.
+        }
+
+        const params = new URLSearchParams(location.search);
+        if (params.has('room')) {
+            settings.room = params.get('room');
+        }
+        if (params.has('scope')) {
+            settings.scope = params.get('scope');
+        }
+
+        settings.room = this._normalizeRoom(settings.room);
+        settings.scope = this._normalizeScope(settings.scope);
+        settings.roomKey = this._normalizeRoomKey(settings.roomKey);
+        this._store(settings);
+        this._syncUrl(settings);
+
+        return settings;
+    }
+
+    static _store(settings) {
+        try {
+            localStorage.setItem('snapdrop-room-settings', JSON.stringify(settings));
+        } catch (e) {
+            // Storage can be disabled; the current page still keeps settings in memory.
+        }
+    }
+
+    static _syncUrl(settings) {
+        const url = new URL(location.href);
+
+        if (settings.room && settings.room !== 'default') {
+            url.searchParams.set('room', settings.room);
+        } else {
+            url.searchParams.delete('room');
+        }
+
+        if (settings.scope && settings.scope !== 'ip') {
+            url.searchParams.set('scope', settings.scope);
+        } else {
+            url.searchParams.delete('scope');
+        }
+
+        url.searchParams.delete('roomKey');
+        history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+    }
+
+    static _normalizeRoom(room) {
+        const normalized = String(room || 'default')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9._-]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 64);
+
+        return normalized || 'default';
+    }
+
+    static _normalizeRoomKey(roomKey) {
+        return String(roomKey || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9:._-]+/g, '')
+            .slice(0, 96);
+    }
+
+    static _normalizeScope(scope) {
+        return ['ip', 'subnet', 'wide'].includes(scope) ? scope : 'ip';
+    }
+
+    static _hashPassword(password) {
+        let first = 0x811c9dc5;
+        let second = 0x45d9f3b;
+        const input = unescape(encodeURIComponent(String(password)));
+
+        for (let i = 0; i < input.length; i++) {
+            const char = input.charCodeAt(i);
+            first ^= char;
+            first = Math.imul(first, 16777619);
+            second ^= char + i;
+            second = Math.imul(second, 2246822507);
+        }
+
+        return `v1:${(first >>> 0).toString(16).padStart(8, '0')}${(second >>> 0).toString(16).padStart(8, '0')}`;
+    }
+}
+
 class ServerConnection {
 
     constructor() {
         this._connect();
         Events.on('beforeunload', e => this._disconnect());
         Events.on('pagehide', e => this._disconnect());
+        Events.on('room-settings-changed', e => this.reconnect());
         document.addEventListener('visibilitychange', e => this._onVisibilityChange());
     }
 
@@ -58,14 +217,23 @@ class ServerConnection {
         // hack to detect if deployment or development environment
         const protocol = location.protocol.startsWith('https') ? 'wss' : 'ws';
         const webrtc = window.isRtcSupported ? '/webrtc' : '/fallback';
-        const url = protocol + '://' + location.host + location.pathname + 'server' + webrtc;
+        const url = protocol + '://' + location.host + location.pathname + 'server' + webrtc + RoomSettings.queryString();
         return url;
     }
 
     _disconnect() {
+        if (!this._socket) return;
         this.send({ type: 'disconnect' });
         this._socket.onclose = null;
         this._socket.close();
+        this._socket = null;
+    }
+
+    reconnect() {
+        clearTimeout(this._reconnectTimer);
+        Events.fire('peers', []);
+        this._disconnect();
+        this._connect();
     }
 
     _onDisconnect() {
@@ -369,9 +537,15 @@ class PeersManager {
         Events.on('files-selected', e => this._onFilesSelected(e.detail));
         Events.on('send-text', e => this._onSendText(e.detail));
         Events.on('peer-left', e => this._onPeerLeft(e.detail));
+        Events.on('room-settings-changed', e => this._resetPeers());
     }
 
     _onMessage(message) {
+        if (!window.isRtcSupported) {
+            Events.fire('notify-user', 'This browser cannot make a peer-to-peer connection.');
+            return;
+        }
+
         if (!this.peers[message.sender]) {
             this.peers[message.sender] = new RTCPeer(this._server);
         }
@@ -387,7 +561,7 @@ class PeersManager {
             if (window.isRtcSupported && peer.rtcSupported) {
                 this.peers[peer.id] = new RTCPeer(this._server, peer.id);
             } else {
-                this.peers[peer.id] = new WSPeer(this._server, peer.id);
+                Events.fire('notify-user', 'This browser cannot make a peer-to-peer connection.');
             }
         })
     }
@@ -411,13 +585,11 @@ class PeersManager {
         peer._peer.close();
     }
 
-}
-
-class WSPeer {
-    _send(message) {
-        message.to = this._peerId;
-        this._server.send(message);
+    _resetPeers() {
+        this.peers = {};
+        Events.fire('peers', []);
     }
+
 }
 
 class FileChunker {
