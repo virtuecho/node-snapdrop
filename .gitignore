@@ -114,3 +114,8 @@ credentials/
 
 # pnpm
 .pnpm-store/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example

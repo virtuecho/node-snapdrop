@@ -13,7 +13,9 @@
     "smoke": "node scripts/smoke-test.js",
     "arch:check": "node scripts/check-architecture.js",
     "build": "node scripts/check-syntax.js",
-    "check": "pnpm run lint && pnpm run arch:check && pnpm run test && pnpm run build"
+    "check": "pnpm run lint && pnpm run arch:check && pnpm run test && pnpm run build",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
   },
   "engines": {
     "node": ">= 18"
@@ -27,5 +29,8 @@
     "ua-parser-js": "^2.0.9",
     "unique-names-generator": "^4.3.0",
     "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.90.1"
   }
 }
