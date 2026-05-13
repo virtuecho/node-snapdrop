@@ -9,7 +9,9 @@ This repository is a small full-stack Node.js web app:
 - `index.js` starts an Express HTTP server and a WebSocket signaling server.
 - `public/` contains the static Snapdrop client.
 - Peers are grouped by detected client IP so devices on the same network can discover one another.
+- Users can optionally choose a room, room password key, and wider IP visibility scope.
 - The server does not store files, user accounts, or persistent peer state.
+- The server must not relay file or text payloads; it only relays WebRTC signaling.
 
 ## 2. Non-negotiable rules
 
@@ -19,6 +21,7 @@ This repository is a small full-stack Node.js web app:
 - Do not commit secrets, private keys, cookies, production data, or local `.env` files.
 - Do not commit generated dependency folders such as `node_modules/`.
 - Preserve existing Snapdrop behavior unless the task explicitly asks to change it.
+- Do not add TURN, WebSocket relay, or any fallback that moves file payloads through the deployment server unless explicitly requested.
 - Keep changes small, reviewable, and reversible.
 - Prefer commands in `package.json` over one-off manual steps.
 

@@ -37,3 +37,22 @@ Consequences:
 
 - Validation is fast and reproducible.
 - Future behavior changes should add focused tests rather than replacing the smoke test with broad tooling immediately.
+
+## 2026-05-14: Keep file transfer peer-to-peer only
+
+Context:
+
+- TURN and WebSocket relay modes consume deployment-side traffic.
+- The existing `WSPeer` client path was incomplete and could imply server-side payload relay.
+
+Decision:
+
+- Remove the WebSocket payload fallback path.
+- Allow the server to relay only WebRTC `signal` messages.
+- Add optional room settings and IP visibility scopes for discovery without adding deployment-side file relay.
+
+Consequences:
+
+- WebRTC failure is surfaced as a connection failure rather than falling back to server relay.
+- The default room remains automatic and invisible to users.
+- Custom room names, password keys, and wider IP visibility scopes only affect peer discovery.

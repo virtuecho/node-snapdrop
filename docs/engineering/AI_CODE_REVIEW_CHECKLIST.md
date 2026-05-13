@@ -13,13 +13,16 @@ Use this checklist when reviewing AI-generated or human-written changes.
 
 - [ ] Are WebSocket message types preserved?
 - [ ] Are peer IDs and peer rooms handled safely?
+- [ ] Are custom room and visibility scope changes compatible with the default room?
 - [ ] Are disconnect and keepalive paths still correct?
+- [ ] Does the server still relay only WebRTC `signal` messages?
 - [ ] Are rate limit and proxy assumptions documented when changed?
 - [ ] Are errors handled without leaking sensitive data?
 
 ## 3. Client behavior
 
 - [ ] Does the browser UI still load from `public/`?
+- [ ] Does the default room path remain no-touch for users?
 - [ ] Are service worker changes intentional?
 - [ ] Are static assets referenced by existing paths?
 - [ ] Is browser compatibility considered for plain JavaScript changes?

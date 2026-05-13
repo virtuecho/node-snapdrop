@@ -78,6 +78,20 @@ pnpm run dev:public
 
 Copy `.env.example` for local notes if needed, but do not commit `.env`.
 
+## Rooms and visibility
+
+Every visitor joins the default room automatically, so the default experience remains the same as classic Snapdrop.
+
+Use the room settings button only when you want to override discovery:
+
+| Setting | Effect |
+|---|---|
+| Room | Separates discovery by a user-chosen room name. |
+| Password | Adds a local discovery key to the room. It does not encrypt files. |
+| Visible range | Changes the server-side IP grouping from exact IP to `/24` or `/16` for IPv4, and `/64` or `/48` for IPv6. |
+
+The deployment server only relays WebRTC signaling. File and text payloads must travel peer-to-peer through WebRTC; there is no TURN or WebSocket file relay fallback.
+
 ## Project structure
 
 ```text
