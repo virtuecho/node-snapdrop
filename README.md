@@ -15,16 +15,16 @@ To get started, clone and cd the repo:
 git clone https://github.com/Bellisario/node-snapdrop.git && cd node-snapdrop
 ```
 
-Install all dependencies with NPM:
+Install all dependencies with pnpm:
 
 ```bash
-npm install
+pnpm install
 ```
 
 Start the server with:
 
 ```bash
-node index.js
+pnpm run dev
 ```
 
 ### Public Run
@@ -32,7 +32,7 @@ node index.js
 If you want to run in your public "sharable" IP instead of locally, you can use this command:
 
 ```bash
-node index.js public
+pnpm run dev:public
 ```
 
 > [!TIP]

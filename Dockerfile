@@ -2,9 +2,11 @@ FROM node:lts-alpine
 
 WORKDIR /home/node/app
 
-COPY package*.json ./
+RUN corepack enable
 
-RUN npm ci
+COPY package.json pnpm-lock.yaml ./
+
+RUN pnpm install --frozen-lockfile --prod
 
 COPY . .
 
@@ -12,4 +14,4 @@ EXPOSE 3000
 
 ENV PORT=3000
 
-CMD ["node", "index.js"]
+CMD ["pnpm", "start"]
