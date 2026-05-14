@@ -27,7 +27,7 @@ function collectJavaScriptFiles(directory) {
       continue;
     }
 
-    if (entry.endsWith('.js')) {
+    if (entry.endsWith('.js') || entry.endsWith('.mjs')) {
       files.push(fullPath);
     }
   }

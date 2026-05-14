@@ -49,7 +49,9 @@ function getTrackedFiles() {
   '.editorconfig',
   '.env.example',
   'Dockerfile',
+  'wrangler.jsonc',
   '.github/workflows/ci.yml',
+  'worker/index.mjs',
   'docs/engineering/ARCHITECTURE.md',
   'docs/engineering/QUALITY_GATES.md',
   'docs/engineering/CI_AND_HOOKS.md',
@@ -78,6 +80,8 @@ if (!String(packageJson.packageManager || '').startsWith('pnpm@')) {
 const requiredScripts = [
   'start',
   'dev',
+  'cloudflare:dev',
+  'cloudflare:deploy',
   'lint',
   'test',
   'smoke',
@@ -112,6 +116,7 @@ const generatedPatterns = [
   /^build\//,
   /^coverage\//,
   /^\.pnpm-store\//,
+  /^\.wrangler\//,
 ];
 const secretPatterns = [
   /^\.env$/,

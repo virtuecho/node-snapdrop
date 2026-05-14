@@ -8,6 +8,8 @@
     "start": "node index.js",
     "dev": "node index.js",
     "dev:public": "node index.js public",
+    "cloudflare:dev": "wrangler dev",
+    "cloudflare:deploy": "wrangler deploy",
     "lint": "node scripts/check-syntax.js",
     "test": "node scripts/smoke-test.js",
     "smoke": "node scripts/smoke-test.js",
@@ -27,5 +29,8 @@
     "ua-parser-js": "^2.0.9",
     "unique-names-generator": "^4.3.0",
     "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.90.1"
   }
 }

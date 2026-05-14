@@ -114,3 +114,6 @@ credentials/
 
 # pnpm
 .pnpm-store/
+
+# Cloudflare local state
+.wrangler/
