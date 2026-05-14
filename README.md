@@ -1,4 +1,4 @@
-# node-snapdrop [![CI](https://github.com/Bellisario/node-snapdrop/actions/workflows/ci.yml/badge.svg)](https://github.com/Bellisario/node-snapdrop/actions/workflows/ci.yml) [![CodeQL](https://github.com/Bellisario/node-snapdrop/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/Bellisario/node-snapdrop/actions/workflows/codeql-analysis.yml)
+# node-snapdrop [![CI](https://github.com/virtuecho/node-snapdrop/actions/workflows/ci.yml/badge.svg)](https://github.com/virtuecho/node-snapdrop/actions/workflows/ci.yml) [![CodeQL](https://github.com/virtuecho/node-snapdrop/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/virtuecho/node-snapdrop/actions/workflows/codeql-analysis.yml)
 
 Just the original Snapdrop, with a complete Node.js server.
 
@@ -23,7 +23,7 @@ corepack enable
 Clone and enter the repository:
 
 ```bash
-git clone https://github.com/Bellisario/node-snapdrop.git
+git clone https://github.com/virtuecho/node-snapdrop.git
 cd node-snapdrop
 ```
 
@@ -89,7 +89,11 @@ Use the room settings button only when you want to override discovery:
 | Room | Separates discovery by a user-chosen room name. |
 | Password | Adds a local discovery key to the room. It does not encrypt files. |
 | Automatic visible range | Uses exact public IPv4, private IPv4 `/24`, and IPv6 `/64` discovery. |
-| Visible range | Changes the server-side IP grouping from exact IP to `/24` or `/16` for IPv4, and `/64` or `/48` for IPv6. |
+| Same IP | Only discovers devices with the same server-visible IP. |
+| Subnet | Groups IPv4 `/24` or IPv6 `/64` addresses. For IPv4, `/24` usually means the same first three numbers, such as `192.168.1.*`. |
+| Wide subnet | Groups IPv4 `/16` or IPv6 `/48` addresses. Use this only when you expect few users behind the same network/provider range. |
+
+The current server-visible IP is shown in the footer. If two nearby devices show different IPs, a system proxy, TUN mode, VPN, or network policy may be sending them through different exits.
 
 The deployment server only relays WebRTC signaling. File and text payloads must travel peer-to-peer through WebRTC; there is no TURN or WebSocket file relay fallback.
 
@@ -150,10 +154,10 @@ The Worker serves `public/` as static assets and handles `/server/*` WebSocket s
 
 ## Contributing
 
-We love contributions. Feel free to open an [issue](https://github.com/Bellisario/node-snapdrop/issues) or a [pull request](https://github.com/Bellisario/node-snapdrop/pulls), and follow the [Contributing Guidelines](https://github.com/Bellisario/node-snapdrop/blob/main/CONTRIBUTING.md).
+We love contributions. Feel free to open an [issue](https://github.com/virtuecho/node-snapdrop/issues) or a [pull request](https://github.com/virtuecho/node-snapdrop/pulls), and follow the [Contributing Guidelines](https://github.com/virtuecho/node-snapdrop/blob/main/CONTRIBUTING.md).
 
 For AI-assisted work, read [AGENTS.md](AGENTS.md) first.
 
 ## License
 
-GPL-3.0 License [here](https://github.com/Bellisario/node-snapdrop/blob/main/LICENSE).
+GPL-3.0 License [here](https://github.com/virtuecho/node-snapdrop/blob/main/LICENSE).
