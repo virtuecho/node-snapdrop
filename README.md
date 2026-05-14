@@ -88,6 +88,7 @@ Use the room settings button only when you want to override discovery:
 |---|---|
 | Room | Separates discovery by a user-chosen room name. |
 | Password | Adds a local discovery key to the room. It does not encrypt files. |
+| Automatic visible range | Uses exact public IPv4, private IPv4 `/24`, and IPv6 `/64` discovery. |
 | Visible range | Changes the server-side IP grouping from exact IP to `/24` or `/16` for IPv4, and `/64` or `/48` for IPv6. |
 
 The deployment server only relays WebRTC signaling. File and text payloads must travel peer-to-peer through WebRTC; there is no TURN or WebSocket file relay fallback.

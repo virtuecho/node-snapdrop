@@ -16,7 +16,8 @@ class RoomSettings {
         const next = {
             room: this._normalizeRoom(settings.room),
             scope: this._normalizeScope(settings.scope),
-            roomKey: settings.clearPassword ? '' : current.roomKey
+            roomKey: settings.clearPassword ? '' : current.roomKey,
+            version: 2
         };
 
         if (settings.password) {
@@ -39,6 +40,8 @@ class RoomSettings {
 
     static scopeLabel(scope) {
         switch (scope) {
+            case 'auto':
+                return 'automatic';
             case 'subnet':
                 return 'subnet';
             case 'wide':
@@ -64,15 +67,21 @@ class RoomSettings {
     static _load() {
         let settings = {
             room: 'default',
-            scope: 'ip',
-            roomKey: ''
+            roomKey: '',
+            scope: 'auto',
+            version: 2
         };
+        let stored = null;
 
         try {
-            const stored = JSON.parse(localStorage.getItem('snapdrop-room-settings'));
+            stored = JSON.parse(localStorage.getItem('snapdrop-room-settings'));
             settings = { ...settings, ...stored };
         } catch (e) {
             // Ignore malformed local settings.
+        }
+
+        if (stored && !stored.version && stored.room === 'default' && stored.scope === 'ip' && !stored.roomKey) {
+            settings.scope = 'auto';
         }
 
         const params = new URLSearchParams(location.search);
@@ -86,6 +95,7 @@ class RoomSettings {
         settings.room = this._normalizeRoom(settings.room);
         settings.scope = this._normalizeScope(settings.scope);
         settings.roomKey = this._normalizeRoomKey(settings.roomKey);
+        settings.version = 2;
         this._store(settings);
         this._syncUrl(settings);
 
@@ -109,7 +119,7 @@ class RoomSettings {
             url.searchParams.delete('room');
         }
 
-        if (settings.scope && settings.scope !== 'ip') {
+        if (settings.scope && settings.scope !== 'auto') {
             url.searchParams.set('scope', settings.scope);
         } else {
             url.searchParams.delete('scope');
@@ -139,7 +149,7 @@ class RoomSettings {
     }
 
     static _normalizeScope(scope) {
-        return ['ip', 'subnet', 'wide'].includes(scope) ? scope : 'ip';
+        return ['auto', 'ip', 'subnet', 'wide'].includes(scope) ? scope : 'auto';
     }
 
     static _hashPassword(password) {

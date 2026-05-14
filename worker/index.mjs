@@ -1,4 +1,4 @@
-const ROOM_SCOPES = new Set(['ip', 'subnet', 'wide']);
+const ROOM_SCOPES = new Set(['auto', 'ip', 'subnet', 'wide']);
 const DEFAULT_ROOM = 'default';
 const COLORS = [
   'Amber',
@@ -50,6 +50,16 @@ function isIPv4(ip) {
   });
 }
 
+function isPrivateIPv4(ip) {
+  const parts = ip.split('.').map(Number);
+
+  return parts[0] === 10
+    || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31)
+    || (parts[0] === 192 && parts[1] === 168)
+    || (parts[0] === 169 && parts[1] === 254)
+    || ip === '127.0.0.1';
+}
+
 function expandIPv6(ip) {
   if (!ip.includes(':')) return null;
 
@@ -78,6 +88,10 @@ function scopedIp(ip, scope) {
   if (isIPv4(ip)) {
     const parts = ip.split('.');
 
+    if (scope === 'auto' && isPrivateIPv4(ip)) {
+      return `ipv4:${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+    }
+
     if (scope === 'wide') {
       return `ipv4:${parts[0]}.${parts[1]}.0.0/16`;
     }
@@ -91,12 +105,12 @@ function scopedIp(ip, scope) {
 
   const ipv6 = expandIPv6(ip);
   if (ipv6) {
-    if (scope === 'wide') {
-      return `ipv6:${ipv6.slice(0, 3).join(':')}::/48`;
+    if (scope === 'auto' || scope === 'subnet') {
+      return `ipv6:${ipv6.slice(0, 4).join(':')}::/64`;
     }
 
-    if (scope === 'subnet') {
-      return `ipv6:${ipv6.slice(0, 4).join(':')}::/64`;
+    if (scope === 'wide') {
+      return `ipv6:${ipv6.slice(0, 3).join(':')}::/48`;
     }
 
     return `ipv6:${ipv6.join(':')}`;
@@ -136,7 +150,7 @@ function getClientIp(request) {
 function getRoomInfo(request) {
   const url = new URL(request.url);
   const requestedScope = url.searchParams.get('scope');
-  const scope = ROOM_SCOPES.has(requestedScope) ? requestedScope : 'ip';
+  const scope = ROOM_SCOPES.has(requestedScope) ? requestedScope : 'auto';
   const ip = getClientIp(request);
   const room = sanitizeRoom(url.searchParams.get('room'));
   const roomKey = sanitizeRoomKey(url.searchParams.get('roomKey'));

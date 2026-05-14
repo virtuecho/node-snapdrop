@@ -1,4 +1,4 @@
-var CACHE_NAME = 'snapdrop-cache-v4';
+var CACHE_NAME = 'snapdrop-cache-v5';
 var urlsToCache = [
   'index.html',
   './',
@@ -24,6 +24,12 @@ self.addEventListener('install', function(event) {
 
 
 self.addEventListener('fetch', function(event) {
+  var url = new URL(event.request.url);
+
+  if (event.request.method !== 'GET' || url.origin !== location.origin) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then(function(response) {
@@ -31,6 +37,8 @@ self.addEventListener('fetch', function(event) {
         if (response) {
           return response;
         }
+        return fetch(event.request);
+      }).catch(function() {
         return fetch(event.request);
       }
     )

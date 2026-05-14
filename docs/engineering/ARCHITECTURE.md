@@ -77,6 +77,8 @@ flowchart LR
 | `ROOMS` | Cloudflare Durable Object binding | Cloudflare only | Stores live WebSocket peers for each signaling room. |
 | `ASSETS` | Cloudflare static assets binding | Cloudflare only | Serves files from `public/`. |
 
+The default visibility scope is automatic: exact public IPv4, private IPv4 `/24`, and IPv6 `/64`.
+
 ## 7. External dependencies
 
 | Dependency | Purpose | Replaceable? |

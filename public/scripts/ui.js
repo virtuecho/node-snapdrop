@@ -280,7 +280,7 @@ class RoomSettingsDialog extends Dialog {
     }
 
     _updateStatus(settings) {
-        const isDefault = settings.room === 'default' && settings.scope === 'ip' && !settings.roomKey;
+        const isDefault = settings.room === 'default' && settings.scope === 'auto' && !settings.roomKey;
         this.$discoveryStatus.textContent = isDefault
             ? 'You can be discovered by everyone on this network'
             : RoomSettings.label(settings);
