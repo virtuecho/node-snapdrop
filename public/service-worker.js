@@ -1,4 +1,4 @@
-var CACHE_NAME = 'snapdrop-cache-v5';
+var CACHE_NAME = 'snapdrop-cache-v6';
 var urlsToCache = [
   'index.html',
   './',
@@ -19,6 +19,9 @@ self.addEventListener('install', function(event) {
         console.log('Opened cache');
         return cache.addAll(urlsToCache);
       })
+      .then(function() {
+        return self.skipWaiting();
+      })
   );
 });
 
@@ -26,7 +29,7 @@ self.addEventListener('install', function(event) {
 self.addEventListener('fetch', function(event) {
   var url = new URL(event.request.url);
 
-  if (event.request.method !== 'GET' || url.origin !== location.origin) {
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin) {
     return;
   }
 
@@ -39,7 +42,10 @@ self.addEventListener('fetch', function(event) {
         }
         return fetch(event.request);
       }).catch(function() {
-        return fetch(event.request);
+        return new Response('', {
+          status: 504,
+          statusText: 'Gateway Timeout'
+        });
       }
     )
   );
@@ -52,14 +58,13 @@ self.addEventListener('activate', function(event) {
     caches.keys().then(function(cacheNames) {
       return Promise.all(
         cacheNames.filter(function(cacheName) {
-          // Return true if you want to remove this cache,
-          // but remember that caches are shared across
-          // the whole origin
-          return true
+          return cacheName !== CACHE_NAME
         }).map(function(cacheName) {
           return caches.delete(cacheName);
         })
       );
+    }).then(function() {
+      return self.clients.claim();
     })
   );
 });
