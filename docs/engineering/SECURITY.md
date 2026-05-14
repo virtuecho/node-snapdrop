@@ -59,7 +59,8 @@ Room passwords are discovery keys only. They separate room membership but do not
 |---|---|
 | HTTP rate limit | `index.js` |
 | Secure peer cookie flag | `index.js` |
-| Signal-only WebSocket relay | `index.js` |
+| Signal-only WebSocket relay | `index.js`, `worker/index.mjs` |
+| Cloudflare room coordination | `worker/index.mjs`, `wrangler.jsonc` |
 | Client-side room settings | `public/scripts/network.js`, `public/scripts/ui.js` |
 | Secret file ignore rules | `.gitignore` |
 | Lockfile policy check | `scripts/check-architecture.js` |

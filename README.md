@@ -127,6 +127,26 @@ Run:
 docker run --rm -p 3000:3000 node-snapdrop
 ```
 
+## Cloudflare Workers
+
+This repository also includes a Cloudflare Workers deployment path:
+
+```bash
+pnpm run cloudflare:deploy
+```
+
+Cloudflare should not run `pnpm run dev` during deployment. `pnpm run dev` starts a long-running Node.js server and will time out in Cloudflare's build environment.
+
+Recommended Cloudflare build settings:
+
+| Setting | Value |
+|---|---|
+| Build command | `pnpm install --frozen-lockfile` or empty if Cloudflare already installs dependencies |
+| Deploy command | `pnpm run cloudflare:deploy` |
+| Config file | `wrangler.jsonc` |
+
+The Worker serves `public/` as static assets and handles `/server/*` WebSocket signaling through a Durable Object. It does not relay files or text payloads.
+
 ## Contributing
 
 We love contributions. Feel free to open an [issue](https://github.com/Bellisario/node-snapdrop/issues) or a [pull request](https://github.com/Bellisario/node-snapdrop/pulls), and follow the [Contributing Guidelines](https://github.com/Bellisario/node-snapdrop/blob/main/CONTRIBUTING.md).

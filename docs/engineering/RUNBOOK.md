@@ -62,7 +62,32 @@ Run:
 docker run --rm -p 3000:3000 node-snapdrop
 ```
 
-## 6. Troubleshooting
+## 6. Cloudflare Workers
+
+Preview locally:
+
+```bash
+pnpm run cloudflare:dev
+```
+
+Deploy:
+
+```bash
+pnpm run cloudflare:deploy
+```
+
+Cloudflare build settings should not use `pnpm run dev` as the deploy command. That command starts the Node server and does not exit.
+
+Use:
+
+```text
+Deploy command: pnpm run cloudflare:deploy
+Config file: wrangler.jsonc
+```
+
+The Worker serves `public/` and routes `/server/*` to a Durable Object WebSocket signaling room.
+
+## 7. Troubleshooting
 
 | Symptom | Check |
 |---|---|
@@ -70,7 +95,9 @@ docker run --rm -p 3000:3000 node-snapdrop
 | Peers do not see each other | Confirm they share the expected network/IP path and proxy headers. |
 | CI install fails | Confirm `pnpm-lock.yaml` matches `package.json`. |
 | Smoke test fails | Run `pnpm run dev` and inspect server output. |
+| Cloudflare build times out | Confirm deploy command is not `pnpm run dev`; use `pnpm run cloudflare:deploy`. |
+| Cloudflare WebSocket returns 404 | Confirm `wrangler.jsonc` is deployed as a Worker, not only static Pages assets. |
 
-## 7. Rollback
+## 8. Rollback
 
 No database or persistent storage is managed by this app. Roll back by reverting the code change and redeploying with the previous lockfile and Docker image.

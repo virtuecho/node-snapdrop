@@ -56,3 +56,22 @@ Consequences:
 - WebRTC failure is surfaced as a connection failure rather than falling back to server relay.
 - The default room remains automatic and invisible to users.
 - Custom room names, password keys, and wider IP visibility scopes only affect peer discovery.
+
+## 2026-05-14: Add a Cloudflare Worker signaling path
+
+Context:
+
+- Cloudflare build environments cannot run `pnpm run dev` as a deployment command because it starts a long-running Node server.
+- Cloudflare static hosting alone cannot handle `/server/*` WebSocket signaling.
+
+Decision:
+
+- Keep the Node server for local, Docker, and VPS-style deployments.
+- Add `worker/index.mjs` plus `wrangler.jsonc` for Cloudflare Workers deployments.
+- Use a Durable Object for live room coordination.
+
+Consequences:
+
+- Cloudflare deployments use `pnpm run cloudflare:deploy`.
+- The Worker serves static assets and handles signaling without relaying file payloads.
+- Cloudflare deployments require Durable Object support.

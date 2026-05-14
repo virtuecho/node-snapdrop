@@ -7,6 +7,7 @@ This file gives AI coding agents, Codex, and future maintainers the rules for wo
 This repository is a small full-stack Node.js web app:
 
 - `index.js` starts an Express HTTP server and a WebSocket signaling server.
+- `worker/index.mjs` provides the Cloudflare Workers/Durable Objects signaling path.
 - `public/` contains the static Snapdrop client.
 - Peers are grouped by detected client IP so devices on the same network can discover one another.
 - Users can optionally choose a room, room password key, and wider IP visibility scope.
@@ -57,6 +58,8 @@ Do not reintroduce `package-lock.json` or `yarn.lock`.
 pnpm install
 pnpm run dev
 pnpm run dev:public
+pnpm run cloudflare:dev
+pnpm run cloudflare:deploy
 pnpm run lint
 pnpm test
 pnpm run arch:check

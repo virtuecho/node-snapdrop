@@ -32,6 +32,7 @@ This project is not responsible for:
 | Entry | Purpose |
 |---|---|
 | `index.js` | Starts the HTTP server, static file serving, rate limiting, and WebSocket signaling. |
+| `worker/index.mjs` | Cloudflare Worker and Durable Object signaling entry. |
 | `public/index.html` | Main browser UI document. |
 | `public/scripts/network.js` | Browser-side peer networking and signaling flow. |
 | `public/scripts/ui.js` | Browser-side UI interactions. |
@@ -59,7 +60,8 @@ flowchart LR
 
 | Module | Responsibility | Should not do |
 |---|---|---|
-| `index.js` | Server startup, rate limiting, peer rooms, WebRTC signaling relay. | Persist user data, embed client UI logic, or relay file payloads. |
+| `index.js` | Node server startup, rate limiting, peer rooms, WebRTC signaling relay. | Persist user data, embed client UI logic, or relay file payloads. |
+| `worker/index.mjs` | Cloudflare Worker static asset handoff and Durable Object room signaling. | Run Node-only APIs, relay file payloads, or replace the local Node development path. |
 | `public/` | Browser assets and client behavior. | Read server internals directly. |
 | `scripts/` | Local validation and maintenance checks. | Change product behavior at runtime. |
 | `.github/workflows/` | Remote validation. | Deploy or publish without an explicit workflow. |
@@ -72,6 +74,8 @@ flowchart LR
 | `NODE_ENV` | environment | no | Conventional Node environment value. |
 | `public` argument | CLI | no | Runs the server with Node's default listen host behavior. |
 | room settings | browser local storage / URL | no | Optional room, password key, and visibility scope. |
+| `ROOMS` | Cloudflare Durable Object binding | Cloudflare only | Stores live WebSocket peers for each signaling room. |
+| `ASSETS` | Cloudflare static assets binding | Cloudflare only | Serves files from `public/`. |
 
 ## 7. External dependencies
 
