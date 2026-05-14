@@ -412,6 +412,12 @@ x-dialog select {
     color: var(--primary-color);
 }
 
+.field-help {
+    margin-top: 6px;
+    color: var(--text-color);
+    opacity: 0.72;
+}
+
 .room-password-clear {
     align-items: center;
     margin: 8px 0;

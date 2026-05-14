@@ -51,6 +51,21 @@ class RoomSettings {
         }
     }
 
+    static scopeDescription(scope) {
+        switch (scope) {
+            case 'auto':
+                return 'Automatic uses the exact public IP, private IPv4 /24, or IPv6 /64.';
+            case 'ip':
+                return 'Same IP only shows devices with the same server-visible IP.';
+            case 'subnet':
+                return 'Subnet groups IPv4 /24 or IPv6 /64 addresses, usually the same local network.';
+            case 'wide':
+                return 'Wide subnet groups IPv4 /16 or IPv6 /48 addresses; use only when you expect few users behind the same network.';
+            default:
+                return '';
+        }
+    }
+
     static queryString() {
         const settings = this.get();
         const params = new URLSearchParams();

@@ -275,6 +275,8 @@ export class SnapdropRoom {
       message: {
         deviceName: peer.name.deviceName,
         displayName: peer.name.displayName,
+        ip: peer.room.ip,
+        visibility: peer.room.visibility,
       },
     });
 

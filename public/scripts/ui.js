@@ -11,6 +11,11 @@ Events.on('display-name', e => {
     const $displayName = $('displayName')
     $displayName.textContent = 'You are known as ' + me.displayName;
     $displayName.title = me.deviceName;
+    const $connectionIp = $('connectionIp');
+    if ($connectionIp && me.ip) {
+        $connectionIp.textContent = 'Server sees this device as ' + me.ip;
+        $connectionIp.title = me.visibility || me.ip;
+    }
 });
 
 class PeersUI {
@@ -248,6 +253,7 @@ class RoomSettingsDialog extends Dialog {
         this.$room = $('roomInput');
         this.$password = $('roomPassword');
         this.$scope = $('roomScope');
+        this.$scopeHelp = $('roomScopeHelp');
         this.$clearPassword = $('clearRoomPassword');
         this.$clearPasswordRow = $$('.room-password-clear');
         this.$summary = $('roomSummary');
@@ -255,6 +261,7 @@ class RoomSettingsDialog extends Dialog {
 
         this.$button.addEventListener('click', e => this._onOpen(e));
         this.$form.addEventListener('submit', e => this._onSubmit(e));
+        this.$scope.addEventListener('change', e => this._updateScopeHelp(e.target.value));
         Events.on('room-settings-updated', e => this._updateStatus(e.detail));
         this._updateStatus(RoomSettings.get());
     }
@@ -291,6 +298,7 @@ class RoomSettingsDialog extends Dialog {
         this.$password.placeholder = settings.roomKey ? 'Saved password unchanged' : 'Optional';
         this.$clearPassword.checked = false;
         this.$clearPasswordRow.hidden = !settings.roomKey;
+        this._updateScopeHelp(settings.scope);
         this._updateSummary(settings);
     }
 
@@ -305,6 +313,11 @@ class RoomSettingsDialog extends Dialog {
     _updateSummary(settings) {
         if (!this.$summary) return;
         this.$summary.textContent = RoomSettings.label(settings);
+    }
+
+    _updateScopeHelp(scope) {
+        if (!this.$scopeHelp) return;
+        this.$scopeHelp.textContent = RoomSettings.scopeDescription(scope);
     }
 }
 
