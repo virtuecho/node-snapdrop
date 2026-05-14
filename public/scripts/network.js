@@ -408,6 +408,17 @@ class RTCPeer extends Peer {
 
     constructor(serverConnection, peerId) {
         super(serverConnection, peerId);
+        this._candidateTypes = {
+            local: new Set(),
+            remote: new Set()
+        };
+        this._diagnostics = {
+            error: '',
+            gatheringState: 'new',
+            iceState: 'new',
+            localCandidates: 0,
+            remoteCandidates: 0
+        };
         this._isCaller = false;
         this._isClosing = false;
         this._failureNoticeShown = false;
@@ -438,7 +449,9 @@ class RTCPeer extends Peer {
         this._conn = new RTCPeerConnection(RTCPeer.config);
         this._conn.onicecandidate = e => this._onIceCandidate(e);
         this._conn.onconnectionstatechange = e => this._onConnectionStateChange(e);
+        this._conn.onicegatheringstatechange = e => this._onIceGatheringStateChange(e);
         this._conn.oniceconnectionstatechange = e => this._onIceConnectionStateChange(e);
+        this._resetDiagnostics();
 
         if (isCaller) {
             this._openChannel();
@@ -487,7 +500,12 @@ class RTCPeer extends Peer {
     }
 
     _onIceCandidate(event) {
-        if (!event.candidate) return;
+        if (!event.candidate) {
+            this._diagnostics.gatheringState = this._conn ? this._conn.iceGatheringState : this._diagnostics.gatheringState;
+            return;
+        }
+        this._diagnostics.localCandidates += 1;
+        this._trackCandidateType('local', event.candidate.candidate);
         this._sendSignal({ ice: event.candidate });
     }
 
@@ -540,6 +558,8 @@ class RTCPeer extends Peer {
     _onRemoteIce(message) {
         if (!this._conn || this._conn.signalingState === 'closed') return Promise.resolve();
 
+        this._diagnostics.remoteCandidates += 1;
+        this._trackCandidateType('remote', message.ice.candidate);
         return this._conn.addIceCandidate(new RTCIceCandidate(message.ice))
             .catch(error => {
                 if (this._conn && this._conn.signalingState !== 'closed') {
@@ -556,6 +576,7 @@ class RTCPeer extends Peer {
         this._channel = channel;
         this._failureNoticeShown = false;
         this._pendingNoticeShown = false;
+        this._setPeerStatus('');
         clearTimeout(this._restartTimer);
         this._restartTimer = 0;
         this._flushPendingMessages();
@@ -577,19 +598,30 @@ class RTCPeer extends Peer {
                 this._scheduleReconnect(3000);
                 break;
             case 'failed':
-                if (this._pendingMessages.length && !this._failureNoticeShown) {
+                if (!this._failureNoticeShown) {
                     this._failureNoticeShown = true;
-                    Events.fire('notify-user', 'Peer-to-peer connection failed.');
+                    this._reportConnectionFailure();
                 }
                 this._scheduleReconnect();
                 break;
         }
     }
 
+    _onIceGatheringStateChange() {
+        if (!this._conn) return;
+        this._diagnostics.gatheringState = this._conn.iceGatheringState;
+    }
+
     _onIceConnectionStateChange() {
+        if (!this._conn) return;
+        this._diagnostics.iceState = this._conn.iceConnectionState;
         switch (this._conn.iceConnectionState) {
             case 'failed':
                 console.error('ICE Gathering failed');
+                if (!this._failureNoticeShown) {
+                    this._failureNoticeShown = true;
+                    this._reportConnectionFailure();
+                }
                 break;
             default:
                 console.log('ICE Gathering', this._conn.iceConnectionState);
@@ -597,6 +629,7 @@ class RTCPeer extends Peer {
     }
 
     _onError(error) {
+        this._diagnostics.error = error && error.message ? error.message : String(error);
         console.error(error);
     }
 
@@ -607,6 +640,7 @@ class RTCPeer extends Peer {
             this.refresh();
             if (!this._pendingNoticeShown) {
                 this._pendingNoticeShown = true;
+                this._setPeerStatus('Connecting...');
                 Events.fire('notify-user', 'Connecting to peer...');
             }
             return;
@@ -667,6 +701,7 @@ class RTCPeer extends Peer {
             this._conn.onconnectionstatechange = null;
             this._conn.ondatachannel = null;
             this._conn.onicecandidate = null;
+            this._conn.onicegatheringstatechange = null;
             this._conn.oniceconnectionstatechange = null;
             try {
                 this._conn.close();
@@ -688,6 +723,82 @@ class RTCPeer extends Peer {
         if (this._channel && this._channel.readyState === 'connecting') return true;
         if (!this._conn) return false;
         return this._conn.connectionState === 'new' || this._conn.connectionState === 'connecting';
+    }
+
+    _resetDiagnostics() {
+        this._candidateTypes = {
+            local: new Set(),
+            remote: new Set()
+        };
+        this._diagnostics = {
+            error: '',
+            gatheringState: this._conn ? this._conn.iceGatheringState : 'new',
+            iceState: this._conn ? this._conn.iceConnectionState : 'new',
+            localCandidates: 0,
+            remoteCandidates: 0
+        };
+    }
+
+    _trackCandidateType(side, candidate) {
+        const match = String(candidate || '').match(/\btyp\s+([a-z0-9-]+)/i);
+        if (match) {
+            this._candidateTypes[side].add(match[1]);
+        }
+    }
+
+    _connectionFailureReason() {
+        const localTypes = Array.from(this._candidateTypes.local);
+        const remoteTypes = Array.from(this._candidateTypes.remote);
+
+        if (!this._diagnostics.localCandidates) {
+            return 'No local ICE candidates. Browser WebRTC or UDP may be blocked.';
+        }
+
+        if (!this._diagnostics.remoteCandidates) {
+            return 'No remote ICE candidates. The other device may be blocking WebRTC or disconnected.';
+        }
+
+        if (!localTypes.includes('host') && !remoteTypes.includes('host')) {
+            return 'No LAN candidates were exchanged. Proxy, VPN, or browser privacy settings may be hiding local addresses.';
+        }
+
+        if (this._diagnostics.iceState === 'disconnected' || this._diagnostics.iceState === 'failed') {
+            return 'ICE could not find a direct peer-to-peer route. AP isolation, VPN/TUN, firewall, or different network segments may be blocking UDP.';
+        }
+
+        if (this._diagnostics.error) {
+            return this._diagnostics.error;
+        }
+
+        return 'Peer-to-peer connection failed before the data channel opened.';
+    }
+
+    _reportConnectionFailure() {
+        const reason = this._connectionFailureReason();
+        const detail = {
+            error: this._diagnostics.error,
+            gatheringState: this._diagnostics.gatheringState,
+            iceState: this._diagnostics.iceState,
+            localCandidateTypes: Array.from(this._candidateTypes.local),
+            localCandidates: this._diagnostics.localCandidates,
+            peerId: this._peerId,
+            reason,
+            remoteCandidateTypes: Array.from(this._candidateTypes.remote),
+            remoteCandidates: this._diagnostics.remoteCandidates,
+            state: this._conn ? this._conn.connectionState : 'closed'
+        };
+
+        this._setPeerStatus(`WebRTC failed: ${reason}`);
+        console.warn('RTC: connection failed', detail);
+        Events.fire('webrtc-failed', detail);
+        Events.fire('notify-user', `WebRTC failed: ${reason}`);
+    }
+
+    _setPeerStatus(status) {
+        Events.fire('peer-status', {
+            peerId: this._peerId,
+            status
+        });
     }
 }
 

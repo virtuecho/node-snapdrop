@@ -20,6 +20,7 @@ class PeersUI {
         Events.on('peer-left', e => this._onPeerLeft(e.detail));
         Events.on('peers', e => this._onPeers(e.detail));
         Events.on('file-progress', e => this._onFileProgress(e.detail));
+        Events.on('peer-status', e => this._onPeerStatus(e.detail));
         Events.on('paste', e => this._onPaste(e));
     }
 
@@ -46,6 +47,12 @@ class PeersUI {
         const $peer = $(peerId);
         if (!$peer) return;
         $peer.ui.setProgress(progress.progress);
+    }
+
+    _onPeerStatus(message) {
+        const $peer = $(message.peerId);
+        if (!$peer) return;
+        $peer.ui.setStatus(message.status);
     }
 
     _clearPeers() {
@@ -105,6 +112,7 @@ class PeerUI {
         el.querySelector('.device-name').textContent = this._deviceName();
         this.$el = el;
         this.$progress = el.querySelector('.progress');
+        this.$status = el.querySelector('.status');
     }
 
     _bindListeners(el) {
@@ -165,6 +173,13 @@ class PeerUI {
             this.setProgress(0);
             this.$el.removeAttribute('transfer');
         }
+    }
+
+    setStatus(status) {
+        const text = status || '';
+        this.$el.toggleAttribute('status', Boolean(text));
+        this.$status.setAttribute('data-status', text);
+        this.$status.title = text;
     }
 
     _onDrop(e) {

@@ -260,16 +260,26 @@ x-peer[transfer] x-icon {
 
 .status,
 .device-name {
+    width: var(--peer-width);
     height: 18px;
     opacity: 0.7;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 x-peer[transfer] .status:before {
     content: 'Transferring...';
 }
 
-x-peer:not([transfer]) .status,
-x-peer[transfer] .device-name {
+x-peer[status]:not([transfer]) .status:before {
+    content: attr(data-status);
+}
+
+x-peer:not([transfer]):not([status]) .status,
+x-peer[transfer] .device-name,
+x-peer[status] .device-name {
     display: none;
 }
 
