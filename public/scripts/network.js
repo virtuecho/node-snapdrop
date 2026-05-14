@@ -398,12 +398,37 @@ class RTCPeer extends Peer {
 
     constructor(serverConnection, peerId) {
         super(serverConnection, peerId);
+        this._isCaller = false;
+        this._isClosing = false;
+        this._failureNoticeShown = false;
+        this._makingOffer = false;
+        this._pendingNoticeShown = false;
+        this._pendingMessages = [];
+        this._restartTimer = 0;
+        this._signalQueue = Promise.resolve();
         if (!peerId) return; // we will listen for a caller
         this._connect(peerId, true);
     }
 
     _connect(peerId, isCaller) {
-        if (!this._conn) this._openConnection(peerId, isCaller);
+        this._isCaller = isCaller;
+        this._peerId = peerId;
+
+        if (this._conn && this._conn.signalingState !== 'closed') return;
+
+        this._openConnection(peerId, isCaller);
+    }
+
+    _openConnection(peerId, isCaller) {
+        this._isCaller = isCaller;
+        this._peerId = peerId;
+        this._makingOffer = false;
+        this._lastRemoteAnswer = null;
+        this._lastRemoteOffer = null;
+        this._conn = new RTCPeerConnection(RTCPeer.config);
+        this._conn.onicecandidate = e => this._onIceCandidate(e);
+        this._conn.onconnectionstatechange = e => this._onConnectionStateChange(e);
+        this._conn.oniceconnectionstatechange = e => this._onIceConnectionStateChange(e);
 
         if (isCaller) {
             this._openChannel();
@@ -412,29 +437,42 @@ class RTCPeer extends Peer {
         }
     }
 
-    _openConnection(peerId, isCaller) {
-        this._isCaller = isCaller;
-        this._peerId = peerId;
-        this._conn = new RTCPeerConnection(RTCPeer.config);
-        this._conn.onicecandidate = e => this._onIceCandidate(e);
-        this._conn.onconnectionstatechange = e => this._onConnectionStateChange(e);
-        this._conn.oniceconnectionstatechange = e => this._onIceConnectionStateChange(e);
-    }
-
     _openChannel() {
+        if (this._channel && this._channel.readyState !== 'closed') return;
         const channel = this._conn.createDataChannel('data-channel', { 
             ordered: true,
             reliable: true // Obsolete. See https://developer.mozilla.org/en-US/docs/Web/API/RTCDataChannel/reliable
         });
+        this._channel = channel;
         channel.binaryType = 'arraybuffer';
         channel.onopen = e => this._onChannelOpened(e);
-        this._conn.createOffer().then(d => this._onDescription(d)).catch(e => this._onError(e));
+        channel.onclose = e => this._onChannelClosed(channel);
+        this._createOffer();
     }
 
-    _onDescription(description) {
+    _createOffer() {
+        if (!this._conn || this._makingOffer || this._conn.signalingState !== 'stable') return;
+        this._makingOffer = true;
+        const conn = this._conn;
+
+        conn.createOffer()
+            .then(description => this._onDescription(description, conn))
+            .catch(e => this._onError(e))
+            .finally(() => {
+                if (conn === this._conn) {
+                    this._makingOffer = false;
+                }
+            });
+    }
+
+    _onDescription(description, conn = this._conn) {
+        if (!conn || conn !== this._conn || conn.signalingState === 'closed') return Promise.resolve();
         // description.sdp = description.sdp.replace('b=AS:30', 'b=AS:1638400');
-        this._conn.setLocalDescription(description)
-            .then(_ => this._sendSignal({ sdp: description }))
+        return conn.setLocalDescription(description)
+            .then(_ => {
+                if (conn !== this._conn) return;
+                this._sendSignal({ sdp: conn.localDescription || description });
+            })
             .catch(e => this._onError(e));
     }
 
@@ -444,45 +482,96 @@ class RTCPeer extends Peer {
     }
 
     onServerMessage(message) {
+        this._signalQueue = this._signalQueue
+            .then(() => this._onServerMessage(message))
+            .catch(e => this._onError(e));
+    }
+
+    _onServerMessage(message) {
         if (!this._conn) this._connect(message.sender, false);
 
         if (message.sdp) {
-            this._conn.setRemoteDescription(new RTCSessionDescription(message.sdp))
-                .then( _ => {
-                    if (message.sdp.type === 'offer') {
-                        return this._conn.createAnswer()
-                            .then(d => this._onDescription(d));
-                    }
-                })
-                .catch(e => this._onError(e));
+            return this._onRemoteDescription(message);
         } else if (message.ice) {
-            this._conn.addIceCandidate(new RTCIceCandidate(message.ice));
+            return this._onRemoteIce(message);
         }
+
+        return Promise.resolve();
+    }
+
+    _onRemoteDescription(message) {
+        const description = new RTCSessionDescription(message.sdp);
+        const fingerprint = description.sdp || `${description.type}:${message.sender}`;
+
+        if (description.type === 'offer') {
+            if (this._isCaller) return Promise.resolve();
+            if (this._lastRemoteOffer === fingerprint && this._conn.signalingState === 'stable') return Promise.resolve();
+            this._lastRemoteOffer = fingerprint;
+            if (this._conn.signalingState !== 'stable') return Promise.resolve();
+
+            return this._conn.setRemoteDescription(description)
+                .then(_ => this._conn.createAnswer())
+                .then(answer => {
+                    if (!this._conn || this._conn.signalingState !== 'have-remote-offer') return;
+                    return this._onDescription(answer);
+                });
+        }
+
+        if (description.type === 'answer') {
+            if (this._lastRemoteAnswer === fingerprint && this._conn.signalingState === 'stable') return Promise.resolve();
+            this._lastRemoteAnswer = fingerprint;
+            if (this._conn.signalingState !== 'have-local-offer') return Promise.resolve();
+            return this._conn.setRemoteDescription(description);
+        }
+
+        return Promise.resolve();
+    }
+
+    _onRemoteIce(message) {
+        if (!this._conn || this._conn.signalingState === 'closed') return Promise.resolve();
+
+        return this._conn.addIceCandidate(new RTCIceCandidate(message.ice))
+            .catch(error => {
+                if (this._conn && this._conn.signalingState !== 'closed') {
+                    this._onError(error);
+                }
+            });
     }
 
     _onChannelOpened(event) {
         console.log('RTC: channel opened with', this._peerId);
         const channel = event.channel || event.target;
         channel.onmessage = e => this._onMessage(e.data);
-        channel.onclose = e => this._onChannelClosed();
+        channel.onclose = e => this._onChannelClosed(channel);
         this._channel = channel;
+        this._failureNoticeShown = false;
+        this._pendingNoticeShown = false;
+        clearTimeout(this._restartTimer);
+        this._restartTimer = 0;
+        this._flushPendingMessages();
     }
 
-    _onChannelClosed() {
+    _onChannelClosed(channel) {
+        if (channel && channel !== this._channel) return;
         console.log('RTC: channel closed', this._peerId);
-        if (!this.isCaller) return;
-        this._connect(this._peerId, true); // reopen the channel
+        this._channel = null;
+        if (this._isClosing || !this._isCaller) return;
+        this._scheduleReconnect();
     }
 
     _onConnectionStateChange(e) {
+        if (e.target && e.target !== this._conn) return;
         console.log('RTC: state changed:', this._conn.connectionState);
         switch (this._conn.connectionState) {
             case 'disconnected':
-                this._onChannelClosed();
+                this._scheduleReconnect(3000);
                 break;
             case 'failed':
-                this._conn = null;
-                this._onChannelClosed();
+                if (this._pendingMessages.length && !this._failureNoticeShown) {
+                    this._failureNoticeShown = true;
+                    Events.fire('notify-user', 'Peer-to-peer connection failed.');
+                }
+                this._scheduleReconnect();
                 break;
         }
     }
@@ -502,8 +591,24 @@ class RTCPeer extends Peer {
     }
 
     _send(message) {
-        if (!this._channel) return this.refresh();
+        if (!this._isConnected()) {
+            this._pendingMessages.push(message);
+            this._failureNoticeShown = false;
+            this.refresh();
+            if (!this._pendingNoticeShown) {
+                this._pendingNoticeShown = true;
+                Events.fire('notify-user', 'Connecting to peer...');
+            }
+            return;
+        }
+
         this._channel.send(message);
+    }
+
+    _flushPendingMessages() {
+        while (this._pendingMessages.length && this._isConnected()) {
+            this._channel.send(this._pendingMessages.shift());
+        }
     }
 
     _sendSignal(signal) {
@@ -515,7 +620,54 @@ class RTCPeer extends Peer {
     refresh() {
         // check if channel is open. otherwise create one
         if (this._isConnected() || this._isConnecting()) return;
-        this._connect(this._peerId, this._isCaller);
+        if (!this._isCaller) return;
+        this._scheduleReconnect(0);
+    }
+
+    _scheduleReconnect(delay = 1000) {
+        if (!this._isCaller || this._restartTimer) return;
+        this._restartTimer = setTimeout(_ => {
+            this._restartTimer = 0;
+            if (this._isConnected() || this._isConnecting()) return;
+            this._restart();
+        }, delay);
+    }
+
+    _restart() {
+        if (!this._isCaller) return;
+        this._closeConnection();
+        this._openConnection(this._peerId, true);
+    }
+
+    _closeConnection() {
+        this._isClosing = true;
+        this._makingOffer = false;
+
+        if (this._channel) {
+            this._channel.onclose = null;
+            this._channel.onmessage = null;
+            try {
+                this._channel.close();
+            } catch (e) {
+                // Already closed.
+            }
+        }
+
+        if (this._conn) {
+            this._conn.onconnectionstatechange = null;
+            this._conn.ondatachannel = null;
+            this._conn.onicecandidate = null;
+            this._conn.oniceconnectionstatechange = null;
+            try {
+                this._conn.close();
+            } catch (e) {
+                // Already closed.
+            }
+        }
+
+        this._channel = null;
+        this._conn = null;
+        this._isClosing = false;
     }
 
     _isConnected() {
@@ -523,7 +675,9 @@ class RTCPeer extends Peer {
     }
 
     _isConnecting() {
-        return this._channel && this._channel.readyState === 'connecting';
+        if (this._channel && this._channel.readyState === 'connecting') return true;
+        if (!this._conn) return false;
+        return this._conn.connectionState === 'new' || this._conn.connectionState === 'connecting';
     }
 }
 
